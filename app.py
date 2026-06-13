@@ -205,7 +205,7 @@ else:
                 if st.button("📧 Dispatch Email Statement Asset"):
                     if target_email:
                         try:
-    # Your code here (e.g., sending email or database updates)
+    # Everything below must be indented by 4 spaces
     server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
     server.starttls()
     server.login(SENDER_EMAIL, SENDER_PASSWORD)
