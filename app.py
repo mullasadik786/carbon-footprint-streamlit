@@ -117,7 +117,7 @@ else:
             with col2:
                 electricity = st.number_input("Electricity (kWh / month)", min_value=0, value=150)
                 diet = st.selectbox("Primary Diet Type", ["Meat-heavy", "Balanced", "Vegetarian", "Vegan"])
-            submitted = st.form_submit_with_button_label("Save Entry")
+            submitted = st.form_submit_button("Save Entry")
 
         if submitted:
             car_co2 = km_driven * 0.2
