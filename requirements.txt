@@ -1,0 +1,19 @@
+# Core processing and API
+fastapi>=0.110.0
+uvicorn>=0.29.0
+pandas>=2.2.0
+numpy>=1.26.0
+
+# LLM, Embedding, and NLP pipeline
+langchain>=0.2.0
+langchain-community>=0.2.0
+llama-index>=0.10.0
+sentence-transformers>=3.0.0
+transformers>=4.40.0
+torch>=2.3.0
+
+# Vector Database and Data Handling
+pinecone-client>=4.0.0
+pydantic>=2.7.0
+python-dotenv>=1.0.0
+PyPDF2>=3.0.0
