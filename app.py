@@ -205,21 +205,14 @@ else:
                 if st.button("📧 Dispatch Email Statement Asset"):
                     if target_email:
                         try:
-                            # Streamlit Application Secrets retrieval framework
-                            SMTP_SERVER = "://gmail.com"
-                            SMTP_PORT = 587
-                            SENDER_EMAIL = st.secrets.get("EMAIL_USER", "fallback_email@gmail.com")
-                            SENDER_PASSWORD = st.secrets.get("EMAIL_PASS", "fallback_app_password")
+    # Your code here (e.g., sending email or database updates)
+    server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+    server.starttls()
+    server.login(SENDER_EMAIL, SENDER_PASSWORD)
+    server.send_message(msg)
+    server.quit()
+    st.success("Report successfully emailed!")
+except Exception as e:
+    st.error(f"Failed to transmit email configuration: {e}")
 
-                            msg = MIMEMultipart()
-                            msg['From'] = SENDER_EMAIL
-                            msg['To'] = target_email
-                            msg['Subject'] = f"🌱 Your Personal EcoTrack Carbon Audit Report - {st.session_state['username']}"
-                            msg.attach(MIMEText("Hello,\n\nPlease locate the system-generated Carbon Accounting PDF report attached below.", 'plain'))
-
-                            part = MIMEBase('application', 'octet-stream')
-                            part.set_payload(pdf_output)
-                            encoders.encode_base64(part)
-                            part.add_header('Content-Disposition', 'attachment; filename="Carbon_Report.pdf"')
-                            msg.attach(part)
 
