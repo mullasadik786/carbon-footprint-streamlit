@@ -21,7 +21,7 @@ st.write(
 st.markdown("---")
 
 # Layout Split: Left for JD Input, Right for System Configurations
-col_left, col_right = st.columns()
+col_left, col_right = st.columns(2)
 
 with col_left:
     st.markdown("### 📄 Step 1: Input Job Description (JD)")
