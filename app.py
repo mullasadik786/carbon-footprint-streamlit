@@ -1,129 +1,225 @@
 import streamlit as st
+import sqlite3
 import pandas as pd
-import numpy as np
-import time
+import plotly.express as px
+import hashlib
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
+from datetime import datetime
+from fpdf import FPDF
 
-# Page Configuration
-st.set_page_config(
-    page_title="Cognitive Talent Engine - Intelligent Candidate Discovery",
-    page_icon="🚀",
-    layout="wide"
-)
+# --- Page Configuration ---
+st.set_page_config(page_title="EcoTrack Enterprise", page_icon="🌱", layout="wide")
 
-# Title & Description
-st.title("🚀 Cognitive Talent Engine")
-st.subheader("Intelligent Candidate Discovery & Semantic Ranking Engine")
-st.write(
-    "Traditional ATS fails due to the 'Keyword Fallacy'. This platform intelligently segments resumes, "
-    "calculates **Career Velocity**, maps **Skill Adjacency**, and provides **Explainable AI (XAI)** reasoning."
-)
+# --- Database Initialization ---
+def init_db():
+    conn = sqlite3.connect("carbon_tracker.db")
+    cursor = conn.cursor()
+    # Users table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            username TEXT PRIMARY KEY,
+            password TEXT
+        )
+    """)
+    # Carbon logs table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT,
+            date TEXT,
+            region TEXT,
+            car_co2 REAL,
+            flight_co2 REAL,
+            electric_co2 REAL,
+            diet_co2 REAL,
+            total_co2 REAL
+        )
+    """)
+    conn.commit()
+    conn.close()
 
-st.markdown("---")
+init_db()
 
-# Layout Split: Left for JD Input, Right for System Configurations
-col_left, col_right = st.columns(2)
+# --- Password Hashing Function ---
+def make_hash(password):
+    return hashlib.sha256(str.encode(password)).hexdigest()
 
-with col_left:
-    st.markdown("### 📄 Step 1: Input Job Description (JD)")
-    jd_input = st.text_area(
-        "Paste the complex, nuanced job requirements here:",
-        placeholder="e.g., Looking for a Senior MLOps Engineer with 4+ years of experience in distributed training pipelines using PyTorch. Experience with Kubernetes and low-latency model serving is highly desired...",
-        height=180
-    )
+# --- Initialize Authentication Session States ---
+if 'logged_in' not in st.session_state:
+    st.session_state['logged_in'] = False
+if 'username' not in st.session_state:
+    st.session_state['username'] = ""
 
-with col_right:
-    st.markdown("### ⚙️ Step 2: Fine-Tune Dynamic Weights")
-    st.caption("Adjust priorities based on role urgency and seniority:")
+# --- INTERFACE: GATEWAY (NOT LOGGED IN) ---
+if not st.session_state['logged_in']:
+    st.title("🔐 Welcome to EcoTrack")
+    st.subheader("Understand, track, and reduce your global footprint impact.")
     
-    w_semantic = st.slider("Semantic Match Weight (w₁)", 0.0, 1.0, 0.50, step=0.05)
-    w_velocity = st.slider("Career Velocity Weight (w₂)", 0.0, 1.0, 0.30, step=0.05)
-    w_recency = st.slider("Skill Recency Weight (w₃)", 0.0, 1.0, 0.20, step=0.05)
+    auth_mode = st.tabs(["Login Account", "Create Account"])
     
-    # Validation check for weights summing to 1.0
-    total_w = w_semantic + w_velocity + w_recency
-    if round(total_w, 2) != 1.0:
-        st.warning(f"⚠️ Total weight is {total_w:.2f}. For ideal scoring, weights should sum to 1.0.")
-    else:
-        st.success("✅ Weights configuration is mathematically optimized.")
+    with auth_mode[0]:
+        st.write("### Sign In to Dashboard")
+        username = st.text_input("Username", key="login_user")
+        password = st.text_input("Password", type="password", key="login_pass")
+        if st.button("Login"):
+            conn = sqlite3.connect("carbon_tracker.db")
+            cursor = conn.cursor()
+            cursor.execute("SELECT password FROM users WHERE username=?", (username,))
+            user_record = cursor.fetchone()
+            conn.close()
+            
+            if user_record and user_record[0] == make_hash(password):
+                st.session_state['logged_in'] = True
+                st.session_state['username'] = username
+                st.rerun()
+            else:
+                st.error("Invalid credentials entered.")
+                
+    with auth_mode[1]:
+        st.write("### Register New Credentials")
+        new_user = st.text_input("Choose Username", key="reg_user")
+        new_pass = st.text_input("Choose Password", type="password", key="reg_pass")
+        if st.button("Register Account"):
+            if new_user and new_pass:
+                try:
+                    conn = sqlite3.connect("carbon_tracker.db")
+                    cursor = conn.cursor()
+                    cursor.execute("INSERT INTO users VALUES (?, ?)", (new_user, make_hash(new_pass)))
+                    conn.commit()
+                    conn.close()
+                    st.success("Account created! Please change tab to Login.")
+                except sqlite3.IntegrityError:
+                    st.error("Username already taken in system databases.")
+            else:
+                st.warning("Please fully populate entry parameters.")
 
-# Mock Candidate Data Pipeline for PoC Showcase
-def generate_mock_shortlist(jd_text):
-    candidates = [
-        {
-            "Rank": 1,
-            "Candidate_ID": "CAND_042",
-            "Semantic_Match": 92.4,
-            "Career_Velocity": 96.0,
-            "Skill_Recency": 95.0,
-            "Confidence_Interval": "97.2%",
-            "Key_Strength_Summary": "Ranked #1 due to exceptional segment match in Distributed Training. Highly accelerated career velocity (2 promotions in 3 years at top tier firm). Active and recent deployment of PyTorch pipelines."
-        },
-        {
-            "Rank": 2,
-            "Candidate_ID": "CAND_109",
-            "Semantic_Match": 89.5,
-            "Career_Velocity": 85.0,
-            "Skill_Recency": 90.0,
-            "Confidence_Interval": "91.5%",
-            "Key_Strength_Summary": "Strong core alignment. Layer 3 Skill Adjacency logic successfully bridged their deep TensorFlow/NumPy architecture background with your JD's PyTorch requirement, preventing keyword omission."
-        },
-        {
-            "Rank": 3,
-            "Candidate_ID": "CAND_077",
-            "Semantic_Match": 81.0,
-            "Career_Velocity": 92.5,
-            "Skill_Recency": 88.0,
-            "Confidence_Interval": "89.1%",
-            "Key_Strength_Summary": "High potential profile. Career velocity is in the top 5% with continuous progression into Tech Lead roles. Minor score deficit in sub-millisecond serving, but offset by systems engineering depth."
-        },
-        {
-            "Rank": 4,
-            "Candidate_ID": "CAND_015",
-            "Semantic_Match": 88.0,
-            "Career_Velocity": 68.0,
-            "Skill_Recency": 94.0,
-            "Confidence_Interval": "84.3%",
-            "Key_Strength_Summary": "Excellent technical currency. Deep hands-on recency with Kubeflow and Kubernetes. Overall rank adjusted due to multi-year static tenure at current employer (Moderate Career Velocity)."
-        }
-    ]
+# --- INTERFACE: CORE MANAGEMENT DASHBOARD (LOGGED IN) ---
+else:
+    st.sidebar.title(f"👤 Welcome, {st.session_state['username']}!")
+    if st.sidebar.button("Logout Session"):
+        st.session_state['logged_in'] = False
+        st.session_state['username'] = ""
+        st.rerun()
+
+    page = st.sidebar.radio("Navigation Pane", ["Track & Calculate", "Historical Analytics & PDF Export"])
     
-    for cand in candidates:
-        raw_score = (cand["Semantic_Match"] * w_semantic) + (cand["Career_Velocity"] * w_velocity) + (cand["Skill_Recency"] * w_recency)
-        cand["Overall_Score"] = round(raw_score, 1)
+    # Regional grid impact weights (kg CO2 / kWh electricity used)
+    REGIONAL_FACTORS = {
+        "Global Average": 0.43, 
+        "India": 0.71, 
+        "United States": 0.37, 
+        "European Union": 0.23, 
+        "Australia": 0.65
+    }
+
+    # --- TRACKING CONSOLE ---
+    if page == "Track & Calculate":
+        st.header("📊 Calculate Monthly Footprint Vectors")
         
-    candidates = sorted(candidates, key=lambda x: x["Overall_Score"], reverse=True)
-    for i, cand in enumerate(candidates):
-        cand["Rank"] = i + 1
+        with st.form("carbon_calculation_form"):
+            col1, col2 = st.columns(2)
+            with col1:
+                region = st.selectbox("Select Tracking Region", list(REGIONAL_FACTORS.keys()))
+                km_driven = st.number_input("Car Distance Driven (km / month)", min_value=0, value=200)
+                flights = st.number_input("Air Flights Logged (hours / month)", min_value=0, value=1)
+            with col2:
+                electricity = st.number_input("Grid Electricity Consumption (kWh / month)", min_value=0, value=150)
+                diet = st.selectbox("Primary Nutritional Profile", ["Meat-heavy", "Balanced", "Vegetarian", "Vegan"])
+            
+            submitted = st.form_submit_with_button_label("Commit Month Metrics")
+
+        # Carbon conversion metrics math logic
+        car_co2 = km_driven * 0.2
+        flight_co2 = flights * 90
+        electric_co2 = electricity * REGIONAL_FACTORS[region]
         
-    return pd.DataFrame(candidates)
+        diet_factors = {"Meat-heavy": 208, "Balanced": 141, "Vegetarian": 100, "Vegan": 66}
+        diet_co2 = diet_factors[diet]
+        
+        total_co2_kg = car_co2 + flight_co2 + electric_co2 + diet_co2
+        total_co2_tons = total_co2_kg / 1000
 
-st.markdown("---")
+        if submitted:
+            conn = sqlite3.connect("carbon_tracker.db")
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO logs (username, date, region, car_co2, flight_co2, electric_co2, diet_co2, total_co2)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (st.session_state['username'], datetime.now().strftime("%Y-%m-%d"), region, car_co2, flight_co2, electric_co2, diet_co2, total_co2_tons))
+            conn.commit()
+            conn.close()
+            st.success("📝 Success! Entry saved securely inside database profile records.")
 
-# Execution Button
-if st.button("🔍 Run Intelligent Discovery Engine", type="primary"):
-    if not jd_input.strip():
-        st.error("Please enter a Job Description first to begin the discovery process.")
-    else:
-        with st.spinner("Processing... [Layer 1-4 Inbound Pipeline Active]"):
-            time.sleep(1.8)
-            df_results = generate_mock_shortlist(jd_input)
-            st.markdown("### 🏆 Expertly Ranked Shortlist (Top Fit Candidates)")
-            st.balloons()
+        # Display Live Breakdown Graph for current values
+        st.write("---")
+        st.subheader("Current Parameter Breakdown Visualization")
+        metrics_df = pd.DataFrame({
+            "Source Sector": ["Driving Vector", "Flight Vector", "Power Grid Vector", "Dietary Impact"],
+            "Emissions (kg CO2)": [car_co2, flight_co2, electric_co2, diet_co2]
+        })
+        fig_pie = px.pie(metrics_df, values="Emissions (kg CO2)", names="Source Sector", title="Current Month Percentage Impact Weights", hole=0.4)
+        st.plotly_chart(fig_pie, use_container_width=True)
+
+    # --- ANALYTICS AND EXPORT MANAGEMENT ---
+    elif page == "Historical Analytics & PDF Export":
+        st.header("📈 Historical Progression Matrix & Statement Export")
+        
+        conn = sqlite3.connect("carbon_tracker.db")
+        df = pd.read_sql_query("SELECT * FROM logs WHERE username=? ORDER BY date ASC", conn, params=(st.session_state['username'],))
+        conn.close()
+        
+        if df.empty:
+            st.info("No timeline profile datasets found. Proceed to metrics log module first.")
+        else:
+            fig_line = px.line(df, x="date", y="total_co2", markers=True, title="Your Timeline Footprint Trend (Metric Tons CO2)")
+            st.plotly_chart(fig_line, use_container_width=True)
             
-            display_cols = ["Rank", "Candidate_ID", "Overall_Score", "Confidence_Interval", "Key_Strength_Summary"]
-            st.dataframe(df_results[display_cols].set_index("Rank"), use_container_width=True)
+            st.subheader("🖨️ Statement and Report Distribution Panels")
+            c1, c2 = st.columns(2)
             
-            st.markdown("#### 📈 Discovery Insights")
-            m_col1, m_col2, m_col3 = st.columns(3)
-            m_col1.metric("Highest Candidate Score", f"{df_results['Overall_Score'].max()}%")
-            m_col2.metric("Average Confidence Interval", "90.5%")
-            m_col3.metric("Keyword Blindspots Bypassed", "4 Instances")
+            # Prepare PDF generation data block
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Arial", size=16)
+            pdf.cell(200, 10, txt=f"EcoTrack Statement for: {st.session_state['username']}", ln=1, align='C')
+            pdf.set_font("Arial", size=12)
+            pdf.cell(200, 10, txt=f"Generated on Timeline Index: {datetime.now().strftime('%Y-%m-%d')}", ln=2, align='C')
+            pdf.ln(10)
             
-            st.markdown("#### 💾 Export Submission Data")
-            csv_data = df_results[display_cols].to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="📥 Download Ranked Candidates (CSV/XLSX format)",
-                data=csv_data,
-                file_name="ranked_candidates.csv",
-                mime="text/csv"
-            )
+            for index, row in df.iterrows():
+                pdf.cell(200, 10, txt=f"Date Matrix: {row['date']} | Emission Load: {row['total_co2']:.3f} Tons CO2 | Region Context: {row['region']}", ln=1)
+            
+            pdf_output = pdf.output(dest='S').encode('latin-1')
+            
+            with c1:
+                st.write("#### Local System Download")
+                st.download_button(label="📥 Download PDF Summary Report", data=pdf_output, file_name="Carbon_Profile_Report.pdf", mime="application/pdf")
+                
+            with c2:
+                st.write("#### SMTP Mail Distribution")
+                target_email = st.text_input("Destination Email")
+                if st.button("📧 Dispatch Email Statement Asset"):
+                    if target_email:
+                        try:
+                            # Streamlit Application Secrets retrieval framework
+                            SMTP_SERVER = "://gmail.com"
+                            SMTP_PORT = 587
+                            SENDER_EMAIL = st.secrets.get("EMAIL_USER", "fallback_email@gmail.com")
+                            SENDER_PASSWORD = st.secrets.get("EMAIL_PASS", "fallback_app_password")
+
+                            msg = MIMEMultipart()
+                            msg['From'] = SENDER_EMAIL
+                            msg['To'] = target_email
+                            msg['Subject'] = f"🌱 Your Personal EcoTrack Carbon Audit Report - {st.session_state['username']}"
+                            msg.attach(MIMEText("Hello,\n\nPlease locate the system-generated Carbon Accounting PDF report attached below.", 'plain'))
+
+                            part = MIMEBase('application', 'octet-stream')
+                            part.set_payload(pdf_output)
+                            encoders.encode_base64(part)
+                            part.add_header('Content-Disposition', 'attachment; filename="Carbon_Report.pdf"')
+                            msg.attach(part)
+
